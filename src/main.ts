@@ -1,6 +1,6 @@
 import './scss/styles.scss';
 
-import type { IApi } from './types';
+// import type { IApi } from './types';
 
 import { apiProducts } from "./utils/data";
 
@@ -12,40 +12,38 @@ import { Api } from './components/base/Api';
 
 
 const catalog = new Catalog();
-catalog.setProducts(apiProducts.items); 
-console.log('Массив товаров из каталога: ', catalog.getProducts()) 
+// catalog.setProducts(apiProducts.items); 
+// console.log('Массив товаров из каталога: ', catalog.getProducts()) 
 
 const cart = new Cart();
-console.log('проверка Cart:', cart.getProducts());
+// console.log('проверка Cart:', cart.getProducts());
 
-const buyer = new Buyer();
-console.log('проверка Buyer:', buyer.checkData());
+// const buyer = new Buyer();
+// console.log('проверка Buyer:', buyer.checkData());
 
-const http = new Api('https://larek-api.nomoreparties.co/api/weblarek') as unknown as IApi;
+const http = new Api(`${import.meta.env.VITE_API_ORIGIN}/api/weblarek`);
 const shop = new ShopApi(http);
 
-
+// ---- объединённая проверка всех моделей ----
 const runChecks = (items: any[]) => {
-  // 1) Catalog
+  // Catalog
   console.group('Catalog');
   catalog.setProducts(items);
   console.log('Список товаров (count):', catalog.getProducts().length);
 
   const first = catalog.getProducts()[0];
+  const second = catalog.getProducts()[1];
+
   if (first) {
-    const found = catalog.getProductById(first.id);
-    console.log('getProductById(first.id):', found);
+    console.log('getProductById(first.id):', catalog.getProductById(first.id));
     catalog.setProduct(first);
     console.log('getProduct() после setProduct:', catalog.getProduct());
   }
   console.groupEnd();
 
-  // 2) Cart
+  // Cart
   console.group('Cart');
   console.log('Старт:', cart.getProducts(), 'count=', cart.getCount(), 'sum=', cart.getSum());
-
-  const second = catalog.getProducts()[1];
-
   if (first) {
     cart.addProduct(first);
     console.log('После add(first):', cart.getProducts(), 'count=', cart.getCount(), 'sum=', cart.getSum(), 'has(first)=', cart.hasProduct(first.id));
@@ -62,24 +60,33 @@ const runChecks = (items: any[]) => {
   console.log('После clear():', cart.getProducts(), 'count=', cart.getCount(), 'sum=', cart.getSum());
   console.groupEnd();
 
-  // 3) Buyer
-  console.group('Buyer');
-  console.log('checkData() до setData:', buyer.checkData());
-  buyer.setData({
-    payment: 'card',              
-    address: 'Адрес тест',
+  // Buyer 
+  console.group('Buyer validation');
+
+  const buyerValid = new Buyer();
+  buyerValid.setData({
+    payment: 'card',
+    address: 'Москва, ул. Пушкина, 1',
     email: 'user@example.com',
     phone: '+7 999 123-45-67',
   });
-  console.log('checkData() после setData:', buyer.checkData());
-  console.log('getData():', buyer.getData());
-  buyer.clearData();
-  console.log('После clearData() -> checkData():', buyer.checkData());
+  console.log('валидный покупатель ->', buyerValid.checkData()); 
+  console.log('getData(valid):', buyerValid.getData());
+
+  const buyerInvalid = new Buyer();
+  buyerInvalid.setData({
+    payment: 'cash',
+    address: '',              
+    email: 'wrong-email',     
+    phone: '123',             
+  });
+  console.log('не валидный покупатель ->', buyerInvalid.checkData()); 
   try {
-    console.log('getData() после clearData():', buyer.getData());
+    console.log('getData(invalid):', buyerInvalid.getData());
   } catch (e) {
-    console.log('ОЖИДАЕМО: getData() после clearData() бросил ошибку:', e);
+    console.log('ОЖИДАЕМО: getData(invalid) бросил ошибку:', e);
   }
+
   console.groupEnd();
 };
 
@@ -89,7 +96,7 @@ shop.getProducts()
     console.log('Каталог с сервера загружен, штук:', items.length);
     runChecks(items);
   })
-  .catch((_e) => {
-    console.warn('Сервер недоступен');
-
+  .catch(() => {
+    console.warn('Сервер недоступен, использую локальные данные из utils/data.ts');
+    runChecks(apiProducts.items);
   });
