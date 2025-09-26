@@ -19,3 +19,35 @@
 
 @use "variables" as *;
 @use "mixins";
+
+
+/* 1) Модалка не скроллится целиком */
+.modal {
+  overflow: hidden; 
+}
+.modal .modal__content {
+  max-block-size: 90dvh;  
+  overflow: hidden;       
+}
+
+/* 2) Корзина — колонка, скролл только у списка */
+.basket {
+  display: flex;
+  flex-direction: column;
+  max-block-size: 90dvh; 
+}
+
+/* сам список покупок прокручиваем */
+.basket__list {
+  overflow: auto;
+  max-block-size: min(56dvh, 420px); 
+  padding-right: 8px;               
+}
+
+/* 3) Футер (итог + кнопка) фиксируем внизу области корзины */
+.basket__footer {
+  position: sticky;
+  inset-block-end: 0; 
+  background: inherit;
+  padding-block: 12px;    
+}

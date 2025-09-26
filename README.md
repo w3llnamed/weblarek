@@ -434,7 +434,7 @@ constructor(root: HTMLElement, handlers?: { onOpenBasket?(): void })
 | `PreviewCard` |	`card:remove` |	`{ id: string }` |	Клик «Удалить из корзины». |
 | `BasketItem` |	`card:remove` |	`{ id: string }` |	Кнопка удаления позиции в корзине. |
 | `HeaderView` |	`header:open-basket` |	`void` |	Клик по иконке корзины — показать корзину. |
-| `BasketView` |	`basket:checkout` |	`void` |	Клик «Оформить» в корзине — открыть шаг 1. |
+| `BasketView` |	`basket:checkout` |	`void` |	Клик «Оформить» в корзине — открыть форму доставки. |
 | `PaymentDeliveryForm` |	`checkout:step1:change` |	`Partial<{ payment: 'card'\|'cash'; address: string }>` | Изменение оплаты/адреса |
 | `PaymentDeliveryForm` | `checkout:step1:submit` |	`{ payment: 'card'\|'cash'; address: string }` | Клик «Далее» (валидно) |
 | `ContactsForm` |	`checkout:step2:change` |	`Partial<{ email: string; phone: string }>` |	Изменение контактов. |
@@ -495,7 +495,7 @@ constructor(root: HTMLElement, handlers?: { onOpenBasket?(): void })
 | Представление `BasketItem` |	`onRemove(id)` |	Удалить позицию из корзины |
 | Представление `BasketView` |	`onCheckout()` |	Открыть модалку со шагом 1 (`PaymentDeliveryForm`) |
 | Представление `PaymentDeliveryForm` |	`onChange(state)` |	Валидировать, включать/выключать «Далее» |
-| Представление `PaymentDeliveryForm` |	`onSubmit(fullState)` |	Сохранить в `Buyer`, открыть шаг 2 (`ContactsForm`) |
+| Представление `PaymentDeliveryForm` |	`onSubmit(fullState)` |	Сохранить в `Buyer`, открыть форму контактов (`ContactsForm`) |
 | Представление `ContactsForm` |	`onChange(state)` |	Валидировать, включать/выключать «Оплатить» |
 | Представление `ContactsForm` |	`onSubmit(fullState)` |	Отправить заказ через `ShopApi.createOrder`, очистить корзину/покупателя, показать `OrderSuccessView` |
 | Представление `OrderSuccessView` |	`onClose()` |	Закрыть модалку |

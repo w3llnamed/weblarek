@@ -13,7 +13,6 @@ export class PaymentDeliveryForm extends BaseForm<PaymentDeliveryState> {
   constructor(form: HTMLFormElement, handlers: FormHandlers<PaymentDeliveryState> = {}) {
     super(form, handlers);
 
-    // Обязательные элементы
     const card = form.querySelector<HTMLButtonElement>('button[name="card"].button_alt');
     const cash = form.querySelector<HTMLButtonElement>('button[name="cash"].button_alt');
     const address = form.querySelector<HTMLInputElement>('input[name="address"]');
@@ -38,32 +37,33 @@ export class PaymentDeliveryForm extends BaseForm<PaymentDeliveryState> {
     });
   }
 
+  /** ГАРАНТИРОВАННОЕ чтение состояния формы шага 1 */
+  protected readFormState(): PaymentDeliveryState {
+    const payment: PaymentDeliveryState['payment'] =
+      this.cardBtn.classList.contains(ACTIVE_CLASS) ? 'card' :
+      this.cashBtn.classList.contains(ACTIVE_CLASS) ? 'cash' : '';
+
+    return {
+      payment,
+      address: this.addressInput.value.trim(),
+    };
+  }
+
   /** Установить активный способ оплаты и подсветку */
   setPayment(p: PaymentType): void {
     this.cardBtn.classList.toggle(ACTIVE_CLASS, p === 'card');
     this.cashBtn.classList.toggle(ACTIVE_CLASS, p === 'cash');
-    // Вписываем значение в скрытое «состояние» формы через inputs Map (под именем "payment")
-    // Если поля payment в разметке нет — создадим временно на лету и кэшируем.
-    if (!this.inputs.has('payment')) {
-      const hidden = document.createElement('input');
-      hidden.type = 'hidden';
-      hidden.name = 'payment';
-      this.container.appendChild(hidden);
-      this.inputs.set('payment', hidden);
-    }
-    const paymentInput = this.inputs.get('payment') as HTMLInputElement;
-    paymentInput.value = p;
   }
 
   /** Подставить адрес */
   setAddress(value: string): void {
-    this.addressInput.value = value;
+    this.addressInput.value = value ?? '';
   }
 
-  // Переопределим render, чтобы можно было проставлять payment/address из data
+  /** Разрешаем проставлять значения через render(data) */
   render(data?: Partial<PaymentDeliveryState>): HTMLElement {
     if (data?.payment) this.setPayment(data.payment as PaymentType);
-    if (data?.address !== undefined) this.setAddress(data.address);
+    if (data?.address !== undefined) this.setAddress(data.address ?? '');
     return super.render(data);
   }
 }
