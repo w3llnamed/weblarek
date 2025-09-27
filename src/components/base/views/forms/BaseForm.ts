@@ -1,18 +1,18 @@
 import { Component } from '../../Component';
 
 export type FormHandlers<TState> = {
-  onChange?(state: Partial<TState>): void;
-  onSubmit?(state: TState): void;
+  onChange?(patch: Partial<TState>): void;
+  onSubmit?(full: TState): void;
 };
 
 /**
- * Базовый класс для форм оформления
- * - кеширует поля ввода
- * - управляет отображением ошибок
- * - включает/выключает submit-кнопку
- * - не хранит бизнес-данных, только читает значения из DOM при эмите
+ * Базовый класс для форм.
+ * View НЕ хранит состояние данных — только:
+ *  - читает значения из DOM при эмите,
+ *  - отображает ошибки и disabled,
+ *  - пробрасывает события наружу.
  */
-export class BaseForm<TState extends Record<string, unknown>> extends Component<Partial<TState>> {
+export class BaseForm<TState extends Record<string, unknown>> extends Component<void> {
   protected inputs: Map<string, HTMLInputElement | HTMLTextAreaElement>;
   protected submitBtn?: HTMLButtonElement;
   protected errorsEl?: HTMLElement;
@@ -21,7 +21,6 @@ export class BaseForm<TState extends Record<string, unknown>> extends Component<
 
   constructor(form: HTMLFormElement, handlers: FormHandlers<TState> = {}) {
     super(form);
-
     this.handlers = handlers;
 
     // Собираем инпуты/текстовые поля по name
@@ -32,77 +31,68 @@ export class BaseForm<TState extends Record<string, unknown>> extends Component<
         if (name) this.inputs.set(name, el);
       });
 
-    // Общая область ошибок (если есть в разметке)
+    // Общая область ошибок (если есть)
     this.errorsEl = form.querySelector<HTMLElement>('.form__errors') ?? undefined;
 
     // Кнопка submit (если есть)
-    this.submitBtn =
-      form.querySelector<HTMLButtonElement>('button[type="submit"]') ?? undefined;
+    this.submitBtn = form.querySelector<HTMLButtonElement>('button[type="submit"]') ?? undefined;
 
-    // Слушатели: изменение любого поля -> onChange(currentState)
-    this.inputs.forEach((el, name) => {
-      const handler = () => this.handlers.onChange?.(this.readFormState());
+    // Слушатели: любые изменения пробрасываем наверх снимком ТЕКУЩИХ значений из DOM
+    this.inputs.forEach((el) => {
+      const handler = () => this.handlers.onChange?.(this.getValues());
       el.addEventListener('input', handler);
       el.addEventListener('change', handler);
     });
 
-    // Отправка формы -> onSubmit(fullState)
+    // Отправка формы — только наружу (никаких внутренних setState)
     form.addEventListener('submit', (evt) => {
       evt.preventDefault();
-      // Ровно здесь читаем значения из DOM и отдаем наружу
-      if (this.handlers.onSubmit) {
-        this.handlers.onSubmit(this.readFormState(true) as TState);
-      }
+      this.handlers.onSubmit?.(this.getValues() as TState);
     });
   }
 
-  /** Рендер: опционально заполняет известные поля значениями */
+  /** View-рендер: опционально подставляет значения в поля и возвращает контейнер */
   render(data?: Partial<TState>): HTMLElement {
     if (data) {
       Object.entries(data).forEach(([name, value]) => {
         const el = this.inputs.get(name);
-        if (el) el.value = value as string;
+        if (el != null && value !== undefined && value !== null) {
+          el.value = String(value);
+        }
       });
     }
     return this.container;
   }
 
-  /** Установить/снять disabled на submit-кнопке */
+  /** Управление доступностью submit-кнопки */
   setSubmitDisabled(flag: boolean): void {
     if (this.submitBtn) this.submitBtn.disabled = flag;
   }
 
   /**
-   * Показ ошибок:
-   * - пишет сводный текст в .form__errors (если есть)
-   * - помечает конкретные инпуты aria-invalid
+   * Отрисовка ошибок:
+   *  - сводный текст в .form__errors (если есть),
+   *  - aria-invalid на полях с ошибкой.
    */
-  setErrors(map: Record<string, string>): void {
-    // Сводный текст (в одну строку через «; »)
+  setErrors(map: Record<string, string | undefined>): void {
     if (this.errorsEl) {
-      const list = Object.values(map).filter(Boolean);
+      const list = Object.values(map).filter(Boolean) as string[];
       this.errorsEl.textContent = list.length ? list.join('; ') : '';
     }
 
-    // Пометки на полях
     this.inputs.forEach((el, name) => {
       const hasError = Boolean(map[name]);
       el.toggleAttribute('aria-invalid', hasError);
-      // При необходимости можно добавлять/снимать CSS-класс ошибки
       // el.classList.toggle('form__input_error', hasError);
     });
   }
 
-  /**
-   * Считывает текущее состояние формы из DOM.
-   * @param strict если true — подразумевается полная валидная форма (для onSubmit)
-   */
-  protected readFormState(strict = false): Partial<TState> {
+  /** Снимок текущих значений формы из DOM (без внутреннего хранения) */
+  protected getValues(): Partial<TState> {
     const obj: Record<string, unknown> = {};
     this.inputs.forEach((el, name) => {
       obj[name] = el.value;
     });
-    // Каст к Partial<TState> допустим, так как имена полей задаются шаблоном
     return obj as Partial<TState>;
   }
 }

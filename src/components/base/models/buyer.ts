@@ -10,13 +10,14 @@ export class Buyer {
 
   constructor(private readonly events: EventEmitter) {}
 
-  public setData(data: IBuyer): void {
-    this.payment = data.payment;
-    this.address = data.address;
-    this.phone = data.phone;
-    this.email = data.email;
+  public setData(next: Partial<IBuyer>): void {
+    if (next.payment !== undefined) this.payment = next.payment;
+    if (next.address !== undefined) this.address = next.address;
+    if (next.phone   !== undefined) this.phone   = next.phone;
+    if (next.email   !== undefined) this.email   = next.email;
     this.emitChanged();
   }
+
 
   public getData(): IBuyer {
     if (this.payment === null) {
@@ -47,11 +48,14 @@ export class Buyer {
   }
 
   private emitChanged(): void {
-    const data =
-      this.payment === null
-        ? { payment: 'card' as TPayment, address: this.address, email: this.email, phone: this.phone }
-        : { payment: this.payment, address: this.address, email: this.email, phone: this.phone };
-
-    this.events.emit('buyer:changed', { data });
-  }
+  // шлём «как есть» (частичные данные допустимы для валидации на форме)
+  this.events.emit('buyer:changed', {
+    data: {
+      payment: this.payment as any, // может быть null — валидатор учтёт
+      address: this.address,
+      email:   this.email,
+      phone:   this.phone,
+    }
+  });
+}
 }

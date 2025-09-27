@@ -1,5 +1,9 @@
 import './scss/styles.scss';
 
+// Утилиты
+import { ensureElement, cloneTemplate } from './utils/utils';
+
+
 // Базовые штуки
 import { EventEmitter } from './components/base/Events';
 import { Modal } from './components/base/views/modal/Modal';
@@ -31,86 +35,57 @@ import { OrderSuccessView } from './components/base/views/misc/OrderSuccessView'
 // Типы
 import type { IProduct, IBuyer, IOrderRequest } from './types';
 
-// --- КЭШ ШАБЛОНОВ + УТИЛИТА КЛОНИРОВАНИЯ (один раз при загрузке) ---
-function getTpl(id: string): HTMLTemplateElement {
-  const el = document.getElementById(id);
-  if (!(el instanceof HTMLTemplateElement)) {
-    throw new Error(`Template with id="${id}" not found or not a <template>`);
-  }
-  return el;
-}
-
+// --- КЭШ ШАБЛОНОВ (селекторы для cloneTemplate) ---
 const TPL = {
-  cardCatalog: getTpl('card-catalog'),
-  cardPreview: getTpl('card-preview'),
-  basket:      getTpl('basket'),
-  basketItem:  getTpl('card-basket'),
-  step1:       getTpl('order'),
-  step2:       getTpl('contacts'),
-  success:     getTpl('success'),
+  cardCatalog: '#card-catalog',
+  cardPreview: '#card-preview',
+  basket:      '#basket',
+  basketItem:  '#card-basket',
+  orderForm:   '#order',
+  contactsForm:'#contacts',
+  success:     '#success',
 } as const;
 
-function cloneFrom<T extends HTMLElement = HTMLElement>(tpl: HTMLTemplateElement): T {
-  return tpl.content.firstElementChild!.cloneNode(true) as T;
-}
 
 // --- SINGLETON-экземпляры View (создаются ОДИН РАЗ) ---
-const basketView = new BasketView(cloneFrom<HTMLElement>(TPL.basket), {
+const basketView = new BasketView(cloneTemplate<HTMLElement>(TPL.basket), {
   onCheckout: () => openDeliveryForm()
 });
 
+
 // Хэндлеры вынесены в именованные функции, чтобы не плодить замыкания при каждом открытии
 function onDeliveryChange(state: { payment?: string; address?: string }) {
-  if (state.payment !== undefined) {
-    events.emit('order:change', { key: 'payment', value: state.payment } as OrderChangePayload);
-  }
-  if (state.address !== undefined) {
-    events.emit('order:change', { key: 'address', value: state.address } as OrderChangePayload);
-  }
+  const prev = (() => { try { return buyer.getData(); } catch { return {} as IBuyer; } })();
+  buyer.setData({ ...prev, ...state });
 }
 
-function onDeliverySubmit(state: { payment?: string; address?: string }) {
-  const errors: OrderErrors = {};
-  if (!state.payment) errors.payment = 'Выберите способ оплаты';
-  if (!state.address?.trim()) errors.address = 'Введите адрес доставки';
-
-  // показать ошибки и заодно корректно задизейблить кнопку
-  deliveryForm.setErrors({ payment: errors.payment, address: errors.address });
-  deliveryForm.setSubmitDisabled(Boolean(errors.payment || errors.address));
-  if (errors.payment || errors.address) return;
-
-  // только теперь пишем в модель и идём дальше
-  const prev = (() => { try { return buyer.getData(); } catch { return {} as IBuyer; } })();
-  buyer.setData({ ...prev, payment: state.payment!, address: state.address! } as IBuyer);
-
+function onDeliverySubmit() {
+  const current = (() => { try { return buyer.getData(); } catch { return {} as IBuyer; } })();
+  const { valid } = validateOrder(current, 'delivery');
+  if (!valid) return;
   openContactsForm();
 }
 
-
-const deliveryForm = new PaymentDeliveryForm(cloneFrom<HTMLFormElement>(TPL.step1), {
+const deliveryForm = new PaymentDeliveryForm(cloneTemplate<HTMLFormElement>(TPL.orderForm), {
   onChange: onDeliveryChange,
   onSubmit: onDeliverySubmit
 });
 
 function onContactsChange(state: { email?: string; phone?: string }) {
-  if (state.email !== undefined) {
-    events.emit('order:change', { key: 'email', value: state.email } as OrderChangePayload);
-  }
-  if (state.phone !== undefined) {
-    events.emit('order:change', { key: 'phone', value: state.phone } as OrderChangePayload);
-  }
+  const prev = (() => { try { return buyer.getData(); } catch { return {} as IBuyer; } })();
+  buyer.setData({ ...prev, ...state });
 }
 
-
-async function onContactsSubmit(state: { email: string; phone: string }) {
-  const prev = buyer.getData();
-  buyer.setData({ ...prev, ...state });
+async function onContactsSubmit() {
+  const data = (() => { try { return buyer.getData(); } catch { return {} as IBuyer; } })();
+  const { valid } = validateOrder(data, 'contacts');
+  if (!valid) return;
 
   const order: IOrderRequest = {
-    payment: prev.payment,
-    address: prev.address,
-    email: state.email,
-    phone: state.phone,
+    payment: data.payment,
+    address: data.address,
+    email: data.email!,
+    phone: data.phone!,
     items: cart.getProducts().map(p => p.id),
     total: cart.getSum()
   };
@@ -125,15 +100,14 @@ async function onContactsSubmit(state: { email: string; phone: string }) {
   }
 }
 
-const contactsForm = new ContactsForm(cloneFrom<HTMLFormElement>(TPL.step2), {
+const contactsForm = new ContactsForm(cloneTemplate<HTMLFormElement>(TPL.contactsForm), {
   onChange: onContactsChange,
   onSubmit: onContactsSubmit
 });
 
-const successView = new OrderSuccessView(cloneFrom<HTMLElement>(TPL.success), {
+const successView = new OrderSuccessView(cloneTemplate<HTMLElement>(TPL.success), {
   onClose: () => modal.close()
 });
-
 
 // ---------- ИНИЦИАЛИЗАЦИЯ ----------
 const events = new EventEmitter();
@@ -147,9 +121,9 @@ const catalog = new Catalog(events);
 const cart = new Cart(events);
 const buyer = new Buyer(events);
 
-const gallery = document.querySelector<HTMLElement>('.gallery')!;
-const headerEl = document.querySelector<HTMLElement>('.header')!;
-const modalRoot = document.getElementById('modal-container') as HTMLElement;
+const gallery   = ensureElement<HTMLElement>('.gallery');
+const headerEl  = ensureElement<HTMLElement>('.header');
+const modalRoot = ensureElement<HTMLElement>('#modal-container');
 
 const modal = new Modal(modalRoot);
 const header = new HeaderView(headerEl, {
@@ -164,7 +138,7 @@ renderBasketFromModel();
 
 function renderCatalog() {
   const cards = catalog.getProducts().map((p) => {
-    const node = cloneFrom<HTMLElement>(TPL.cardCatalog);
+    const node = cloneTemplate<HTMLElement>(TPL.cardCatalog);
 
     const card = new CatalogCard(node, {
       onSelect: (id) => {
@@ -187,7 +161,7 @@ function renderCatalog() {
 
 function renderBasketFromModel() {
   const items = cart.getProducts().map((p, i) => {
-    const li = cloneFrom<HTMLElement>(TPL.basketItem);
+    const li = cloneTemplate<HTMLElement>(TPL.basketItem);
 
     const item = new BasketItem(li, {
       onRemove: (id) => {
@@ -213,22 +187,34 @@ function renderBasketFromModel() {
 // --- ВАЛИДАЦИЯ ЗАКАЗА ---
 type OrderErrors = Partial<Record<'payment'|'address'|'email'|'phone'|'common', string>>;
 
-type OrderChangePayload = { key: keyof IBuyer; value: string | undefined };
+type ValidatePhase = 'delivery' | 'contacts' | 'all';
 
-
-function validateOrder(d: IBuyer): { errors: OrderErrors; valid: boolean } {
+function validateOrder(
+  d: Partial<IBuyer>,
+  phase: ValidatePhase = 'all'
+): { errors: OrderErrors; valid: boolean } {
   const errors: OrderErrors = {};
-  if (!d.payment) errors.payment = 'Выберите способ оплаты';
-  if (!d.address?.trim()) errors.address = 'Введите адрес доставки';
-  if (d.email !== undefined && !d.email.trim()) errors.email = 'Введите почту';
-  if (d.phone !== undefined && !d.phone.trim()) errors.phone = 'Введите телефон';
+
+  // Блок «доставка и оплата» (payment + address)
+  if (phase !== 'contacts') {
+    if (!d.payment) errors.payment = 'Выберите способ оплаты';
+    if (!d.address?.trim()) errors.address = 'Введите адрес доставки';
+  }
+
+  // Блок «контакты» (email + phone)
+  if (phase !== 'delivery') {
+    if (!d.email?.trim()) errors.email = 'Введите почту';
+    if (!d.phone?.trim()) errors.phone = 'Введите телефон';
+  }
+
   const valid = Object.keys(errors).length === 0;
   return { errors, valid };
 }
 
 
+
 function openPreview(prod: IProduct) {
-  const node = cloneFrom<HTMLElement>(TPL.cardPreview);
+  const node = cloneTemplate<HTMLElement>(TPL.cardPreview);
 
   const preview = new PreviewCard(node, {
     onAdd: (id) => {
@@ -258,7 +244,6 @@ function openPreview(prod: IProduct) {
 }
 
 function openBasket() {
-  // Ничего не пересобираем при открытии: содержимое синхронизируется по событию 'basket:changed'
   modal.open(basketView.render());
 }
 
@@ -268,12 +253,11 @@ function openDeliveryForm() {
     deliveryForm.setPayment(data.payment);
     deliveryForm.setAddress(data.address);
   } catch {
-    deliveryForm.setPayment(undefined as any);
+    deliveryForm.setPayment('');
     deliveryForm.setAddress('');
+    deliveryForm.setSubmitDisabled(true);
   }
-  deliveryForm.setErrors({ payment: '', address: '' });
-  deliveryForm.setSubmitDisabled(true);
-
+  deliveryForm.setErrors({});
   modal.open(deliveryForm.render());
 }
 
@@ -281,40 +265,38 @@ function openContactsForm() {
   try {
     const data = buyer.getData();
     if (data.email) contactsForm.setEmail(data.email);
+    else contactsForm.setEmail('');
     if (data.phone) contactsForm.setPhone(data.phone);
-    onContactsChange({ email: data.email, phone: data.phone });
+    else contactsForm.setPhone('');
   } catch {
     contactsForm.setEmail('');
     contactsForm.setPhone('');
     contactsForm.setSubmitDisabled(true);
+    contactsForm.setErrors({});
   }
-
+  contactsForm.setErrors({});    
   modal.open(contactsForm.render());
 }
+
 
 function showSuccess(amount: number) {
   modal.open(successView.render({ amount }));
 }
 
 // --- СВЯЗКА: View -> Presenter -> Model -> View ---
-events.on('order:change', ({ key, value }: OrderChangePayload) => {
-  const prev = (() => { try { return buyer.getData(); } catch { return {} as IBuyer; } })();
-  const next = { ...prev, [key]: value } as IBuyer;
+events.on('buyer:changed', ({ data }: { data: Partial<IBuyer> }) => {
+  const { errors } = validateOrder(data, 'all');
 
-  buyer.setData(next);
-
-  const { errors } = validateOrder(next);
-  events.emit('form:validate', errors);
-});
-
-
-events.on('form:validate', (errors: OrderErrors) => {
+  // шаг «Доставка и оплата»
   deliveryForm.setErrors({ payment: errors.payment, address: errors.address });
   deliveryForm.setSubmitDisabled(!!(errors.payment || errors.address));
 
+  // шаг «Контакты»
   contactsForm.setErrors({ email: errors.email, phone: errors.phone, common: errors.common });
   contactsForm.setSubmitDisabled(!!(errors.email || errors.phone));
 });
+
+
 
 
 // ---------- ПОДПИСКИ НА МОДЕЛИ ----------

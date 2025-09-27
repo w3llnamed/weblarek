@@ -25,20 +25,27 @@ export class PaymentDeliveryForm extends BaseForm<PaymentDeliveryState> {
     this.cashBtn = cash;
     this.addressInput = address;
 
-    // Тоггл способа оплаты
-    this.cardBtn.addEventListener('click', () => {
-      this.setPayment('card');
-      this.handlers.onChange?.(this.readFormState());
+    this.addressInput.addEventListener('input', () => {
+      this.handlers.onChange?.(this.getValues());
     });
 
-    this.cashBtn.addEventListener('click', () => {
+
+    // Тоггл способа оплаты — только классы, без хранения данных
+    this.cardBtn.addEventListener('click', (e) => {
+      e.preventDefault();
+      this.setPayment('card');
+      this.handlers.onChange?.(this.getValues());
+    });
+
+    this.cashBtn.addEventListener('click', (e) => {
+      e.preventDefault();
       this.setPayment('cash');
-      this.handlers.onChange?.(this.readFormState());
+      this.handlers.onChange?.(this.getValues());
     });
   }
 
-  /** ГАРАНТИРОВАННОЕ чтение состояния формы шага 1 */
-  protected readFormState(): PaymentDeliveryState {
+  /** Снимок значений шага 1 из DOM */
+  protected getValues(): PaymentDeliveryState {
     const payment: PaymentDeliveryState['payment'] =
       this.cardBtn.classList.contains(ACTIVE_CLASS) ? 'card' :
       this.cashBtn.classList.contains(ACTIVE_CLASS) ? 'cash' : '';
@@ -49,21 +56,19 @@ export class PaymentDeliveryForm extends BaseForm<PaymentDeliveryState> {
     };
   }
 
-  /** Установить активный способ оплаты и подсветку */
-  setPayment(p: PaymentType): void {
+  /** Подсветка выбранного метода оплаты */
+  setPayment(p: PaymentType | ''): void {
     this.cardBtn.classList.toggle(ACTIVE_CLASS, p === 'card');
     this.cashBtn.classList.toggle(ACTIVE_CLASS, p === 'cash');
   }
 
-  /** Подставить адрес */
   setAddress(value: string): void {
     this.addressInput.value = value ?? '';
   }
 
-  /** Разрешаем проставлять значения через render(data) */
   render(data?: Partial<PaymentDeliveryState>): HTMLElement {
-    if (data?.payment) this.setPayment(data.payment as PaymentType);
+    if (data?.payment !== undefined) this.setPayment(data.payment ?? '');
     if (data?.address !== undefined) this.setAddress(data.address ?? '');
-    return super.render(data);
+    return super.render(); // без data
   }
 }

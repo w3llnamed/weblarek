@@ -5,7 +5,6 @@ export type ContactsState = { email: string; phone: string };
 export class ContactsForm extends BaseForm<ContactsState> {
   protected emailInput: HTMLInputElement;
   protected phoneInput: HTMLInputElement;
-  // фиксируем эти элементы как обязательные для конкретного шаблона
   protected submitBtn: HTMLButtonElement;
   protected errorsEl: HTMLElement;
 
@@ -26,27 +25,25 @@ export class ContactsForm extends BaseForm<ContactsState> {
     this.submitBtn = submit;
     this.errorsEl = errors;
 
-    // гарантируем наличие полей в Map базового класса
+    // фиксируем поля в Map базового класса
     this.inputs.set('email', this.emailInput);
     this.inputs.set('phone', this.phoneInput);
   }
 
-  /** Подставить email и уведомить об изменении */
   setEmail(value: string): void {
-    this.emailInput.value = value;
-    this.handlers.onChange?.(this.readFormState());
+    this.emailInput.value = value ?? '';
+    this.handlers.onChange?.(this.getValues());
   }
 
-  /** Подставить телефон и уведомить об изменении */
   setPhone(value: string): void {
-    this.phoneInput.value = value;
-    this.handlers.onChange?.(this.readFormState());
+    this.phoneInput.value = value ?? '';
+    this.handlers.onChange?.(this.getValues());
   }
 
-  /** позволяем проставлять значения через render(data) */
   render(data?: Partial<ContactsState>): HTMLElement {
-    if (data?.email !== undefined) this.emailInput.value = data.email;
-    if (data?.phone !== undefined) this.phoneInput.value = data.phone;
-    return super.render(data);
+    if (data?.email !== undefined) this.emailInput.value = data.email ?? '';
+    if (data?.phone !== undefined) this.phoneInput.value = data.phone ?? '';
+    // ничего не сохраняем во "внутреннее состояние"
+    return super.render(); // без data
   }
 }
